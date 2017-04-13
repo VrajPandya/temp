@@ -17,7 +17,7 @@ INTEL_LIB =
 
 all: ot_blas 
 
-##############################################################	
+##############################################################
 sum: sum.a
 	gcc sum_driver.c -o sum -lsum -L. 
 
@@ -30,10 +30,10 @@ sum.o:
 
 ##############################################################	
 ot_blas: gpublas.a ot_blas.o
-	gcc ot_blas.o -o ot_blas -lgpublas -L.  
+	g++ ot_blas.o -o ot_blas -lgpublas -L. -lcudart -lcudadevrt -lcublas -L/usr/local/cuda-8.0/lib64
 	
 ot_blas.o:
-	gcc -c ot_blas.c -o ot_blas.o -std=c11
+	g++ -c ot_blas.c -o ot_blas.o -std=c11
 	
 gpublas.a: link.o
 	nvcc --lib --output-file libgpublas.a gpu_blas.o link.o -Wno-deprecated-gpu-targets
