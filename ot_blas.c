@@ -51,7 +51,6 @@ int main() {
 	gpu_sgemm(nr_rows_A, nr_cols_A, nr_cols_B, 1.0,  h_A, nr_rows_A, h_B, nr_cols_B, 0.0, h_C, nr_cols_B);
 
 
-
 	printf("A:\n");
 	print_matrix(h_A, nr_rows_A, nr_cols_A);
 

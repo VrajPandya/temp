@@ -16,11 +16,33 @@ INTEL_LIB =
 
 
 all: ot_blas 
-	gcc ot_blas.o gpu_blas.o -o ot_blas -std=c11
 
-ot_blas: gpu_blas
-	gcc -c ot_blas.c -o ot_blas.o -std=c11
+##############################################################	
+sum: sum.a
+	gcc sum_driver.c -o sum -lsum -L. 
 
-gpu_blas:
-	nvcc --device-c gpu_blas.cu -o gpu_blas.o -lcublas -lcurand -Wno-deprecated-gpu-targets
+sum.a: sum.o
+	ar rcs libsum.a sum.o
+
+sum.o:
+	gcc -c sum.c -o sum.o
+
+
+##############################################################	
+ot_blas: gpublas.a ot_blas.o
+	gcc ot_blas.o -o ot_blas -lgpublas -L.  
 	
+ot_blas.o:
+	gcc -c ot_blas.c -o ot_blas.o -std=c11
+	
+gpublas.a: link.o
+	nvcc --lib --output-file libgpublas.a gpu_blas.o link.o -Wno-deprecated-gpu-targets
+	
+link.o: gpu_blas.o
+	nvcc --gpu-architecture=sm_20 --device-link gpu_blas.o --output-file link.o -Wno-deprecated-gpu-targets
+
+gpu_blas.o:
+	nvcc --gpu-architecture=sm_20 --device-c gpu_blas.cu -lcublas -lcurand -Wno-deprecated-gpu-targets
+
+clean:
+	rm -rf *.o *.gpu *.a *.ptx *.stub.c

@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include "gpu_blas.h"
 
+
 extern void gpu_sgemm(int m, int n, int k, float alpha, float* h_A, int lda,
 		float* h_B, int ldb, float beta, float* h_C, int ldc) {
 	// Create a handle for CUBLAS
