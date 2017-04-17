@@ -11,6 +11,9 @@ GPU_LIB_ROOT = $(GPU_ROOT)/lib64
 GPU_LIBS = -lcudart -lcublas -lcurand
 GPU_INCLUDE = $(GPU_ROOT)/include
 
+MKLROOT = /opt/intel/compilers_and_libraries_2017.1.132/linux/mkl
+
+
 CPU_LIBS =
 INTEL_LIB =  
 
@@ -29,11 +32,21 @@ sum.o:
 
 
 ##############################################################	
-ot_blas: gpublas.a ot_blas.o
-	g++ ot_blas.o -o ot_blas -lgpublas -L. -lcudart -lcudadevrt -lcublas -L/usr/local/cuda-8.0/lib64
+ot_blas: gpublas.a cpu_blas.a ot_blas.o
+	g++ ot_blas.o -o ot_blas -lgpublas -lcpublas -L. -lcudart -lcudadevrt -lcublas -L/usr/local/cuda-8.0/lib64 -lrt  -I$(MKLROOT)/include -Wl,-L$(MKLROOT)/lib/intel64/ -lmkl_intel_lp64 -lmkl_core -lgomp -lmkl_gnu_thread -lpthread -lm -ldl
 	
 ot_blas.o:
 	g++ -c ot_blas.c -o ot_blas.o -std=c11
+	
+##############################################################
+cpu_blas.a: cpu_blas.o
+	ar rcs libcpublas.a cpu_blas.o
+
+cpu_blas.o: 
+	icpc -c cpu_blas.c -o cpu_blas.o -lmkl
+
+	
+##############################################################
 	
 gpublas.a: link.o
 	nvcc --lib --output-file libgpublas.a gpu_blas.o link.o -Wno-deprecated-gpu-targets
@@ -43,6 +56,8 @@ link.o: gpu_blas.o
 
 gpu_blas.o:
 	nvcc --gpu-architecture=sm_20 --device-c gpu_blas.cu -lcublas -lcurand -Wno-deprecated-gpu-targets
+
+##############################################################
 
 clean:
 	rm -rf *.o *.gpu *.a *.ptx *.stub.c
