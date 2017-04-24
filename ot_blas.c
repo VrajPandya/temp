@@ -85,10 +85,6 @@ void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 	cudaMalloc(&d_B, n * k * sizeof(double));
 	cudaMalloc(&d_C, (m) * n * sizeof(double));
 
-
-
-
-
 	cudaMemcpyAsync(d_A, h_A , (m * k) * sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpyAsync(d_B, h_B, n * k * sizeof(double), cudaMemcpyHostToDevice);
 
