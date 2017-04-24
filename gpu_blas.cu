@@ -32,3 +32,33 @@ void gpu_sgemm(int m, int n, int k, float alpha, float* h_A, int lda,
 	cudaFree(d_B);
 	cudaFree(d_C);
 }
+
+void gpu_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
+		double* h_B, int ldb, double beta, double* h_C, int ldc) {
+	// Create a handle for CUBLAS
+	cublasHandle_t handle;
+	cublasCreate(&handle);
+
+
+	double *d_A, *d_B, *d_C;
+	cudaMalloc(&d_A, m * n * sizeof(double));
+	cudaMalloc(&d_B, n * k * sizeof(double));
+	cudaMalloc(&d_C, m * k * sizeof(double));
+
+
+	cudaMemcpy(d_A, h_A, m * n * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_B, h_B, n * m * sizeof(double), cudaMemcpyHostToDevice);
+
+	// Do the actual multiplication
+	cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, d_A, lda,
+			d_B, ldb, &beta, d_C, ldc);
+
+
+	cudaMemcpy(h_C, d_C, m * k * sizeof(double), cudaMemcpyDeviceToHost);
+
+	// Destroy the handle
+	cublasDestroy(handle);
+	cudaFree(d_A);
+	cudaFree(d_B);
+	cudaFree(d_C);
+}
