@@ -62,4 +62,4 @@ gpu_blas.o:
 ##############################################################
 
 clean:
-	rm -rf *.o *.gpu *.a *.ptx *.stub.c
+	rm -rf ot_blas *.o *.gpu *.a *.ptx *.stub.c

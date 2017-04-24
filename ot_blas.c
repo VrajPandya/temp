@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -17,9 +18,9 @@
 
 #define MAX_double 50.0
 
-#define PRINT 1
+#define PRINT 0 
 
-#define MY_MY_PERF 0
+#define MY_PERF 1
 
 //int cpu_ops;
 
@@ -48,12 +49,14 @@ void fill_seq(double *A, int rows, int cols) {
 	}
 }
 
-void diff_mat(double* diff, double* A, double* B, int rows, int cols) {
+int diff_mat(double* diff, double* A, double* B, int rows, int cols) {
+	int diff_Max = INT_MIN;
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			diff[(i * rows) + j] = A[(i * rows) + j] - B[(i * rows) + j];
+			if(diff_Max < (diff[(i * rows) + j] = A[(i * rows) + j] - B[(i * rows) + j] ) ) diff_Max = diff[(i * rows) + j];
 		}
 	}
+	return diff_Max;
 }
 
 //Print matrix A(rows_A, cols_A) storage in row-major format
@@ -69,26 +72,20 @@ void print_matrix(const double *A, int rows_A, int cols_A, int lda) {
 
 void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 		double* h_B, int ldb, double beta, double* h_C, int ldc) {
-	int cpu_rows = 1;
+	int cpu_rows = 2;
 	int cpu_ops = cpu_rows * lda;
 
 	int c = cpu_ops;
 
-	cublasInit();
 	cublasHandle_t handle;
 	cublasCreate(&handle);
 
-	double *d_A, *d_B, *d_C, *temp;
+	double *d_A, *d_B, *d_C;
 	cudaMalloc(&d_A, (m) * k * sizeof(double));
 	cudaMalloc(&d_B, n * k * sizeof(double));
 	cudaMalloc(&d_C, (m) * n * sizeof(double));
 
 
-	temp = (double *)malloc((m - cpu_rows) * k * sizeof(double));
-	memset(temp, 0 , (m - cpu_rows) * k * sizeof(double));
-	//print_matrix(h_A + cpu_ops, m - cpu_rows, k , k);
-	memcpy(temp, h_A + (cpu_ops), ((m - cpu_rows) * k) * sizeof(double));
-	print_matrix(temp, m - cpu_rows, k , k);
 
 
 
@@ -96,7 +93,7 @@ void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 	cudaMemcpyAsync(d_B, h_B, n * k * sizeof(double), cudaMemcpyHostToDevice);
 
 	// Do the actual multiplication
-	cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m - cpu_rows, n, k, &alpha, d_A + cpu_ops, lda, d_B, ldb, &beta, d_C + cpu_ops, ldc);
+	cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, k, m - cpu_rows, n, &alpha, d_A + cpu_ops, m - cpu_rows, d_B, k, &beta, d_C + cpu_ops, n);
 
 	cudaMemcpyAsync(h_C + (cpu_ops), d_C + cpu_ops, ((m - cpu_rows) * n) * sizeof(double),
 			cudaMemcpyDeviceToHost);
@@ -111,7 +108,6 @@ void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 	cudaFree(d_A);
 	cudaFree(d_B);
 	cudaFree(d_C);
-	free(temp);
 
 }
 
@@ -166,11 +162,14 @@ int main(int argc, const char** argv) {
 	cpu_dgemm(rows_A, cols_A, cols_B, 1.0, h_A, cols_A, h_B, cols_B, 0.0,
 			h_cpu_C, cols_C);
 #if MY_PERF
-	cpu_stop = second();
+	ot_start = cpu_stop = second();
 #endif
 	//both CPU and GPU execution
 	ot_dgemm(rows_A, cols_A, cols_B, 1.0, h_A, cols_A, h_B, cols_B, 0.0, ot_C,
 			cols_C);
+#if MY_PERF
+	ot_stop = second();
+#endif
 
 #if PRINT
 	printf("++++++++++++++++++++++++++A++++++++++++++++++++++++++ :\n");
@@ -189,12 +188,13 @@ int main(int argc, const char** argv) {
 	printf("++++++++++++++++++++++++++ot C++++++++++++++++++++++++++:\n");
 	print_matrix(ot_C, rows_B, cols_C, cols_C);
 
-	diff_mat(h_diff_C, h_cpu_C, ot_C, rows_B, cols_C);
 
-	printf("++++++++++++++++++++++++++diff++++++++++++++++++++++++++:\n");
-	print_matrix(h_diff_C, rows_B, cols_C, cols_C);
 #endif
-
+	int diff = diff_mat(h_diff_C, h_cpu_C, ot_C, rows_B, cols_C);
+	if(diff){
+		printf("++++++++++++++++++++++++++diff++++++++++++++++++++++++++:\n");
+		print_matrix(h_diff_C, rows_B, cols_C, cols_C);
+	}
 #if MY_PERF
 	printf("^^^^ elapsed for GPU = %10.8f sec  GFLOPS=%g\n",
 			(gpu_stop - gpu_start),
@@ -204,6 +204,11 @@ int main(int argc, const char** argv) {
 			(cpu_stop - cpu_start),
 			cpu_N * (1e-9 * flopsCoef * rows_A * cols_A * cols_B)
 			/ (cpu_stop - cpu_start));
+	printf("^^^^ elapsed for ot = %10.8f sec  GFLOPS=%g\n",
+			(ot_stop - ot_start),
+			cpu_N * (1e-9 * flopsCoef * rows_A * cols_A * cols_B)
+			/ (ot_stop - ot_start));
+	
 #endif
 
 	free(h_A);
