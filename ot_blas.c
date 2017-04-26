@@ -18,7 +18,7 @@
 
 #define MAX_double 50.0
 
-#define PRINT 1
+#define PRINT 0
 
 #define MY_PERF 1
 
@@ -94,7 +94,10 @@ void ot_dgemm(int cpu_rows, int m, int n, int k, double alpha, double* h_A, int 
 
 
 	printf("after gpu\n");
+
+
 	cudaMemcpyAsync(h_C + cpu_ops, d_C, (r * n) * sizeof(double), cudaMemcpyDeviceToHost);
+
 	cpu_dgemm(cpu_rows, n, k, alpha, h_A, lda, h_B, ldb, beta, h_C, ldc);
 	//cpu_dgemm(m - cpu_rows, n, k, alpha, h_A + cpu_ops, lda, h_B, ldb, beta, h_C + cpu_ops, ldc);
 
@@ -113,7 +116,9 @@ int main(int argc, const char** argv) {
 	// Allocate 3 arrays on CPU
 	int rows_A, cols_A, rows_B, cols_B, rows_C, cols_C;
 	float flopsCoef = 2.0;
-	int size = 5, cpu_rows = 2;
+	int size = 5;
+	int load_factor = 7;
+	int cpu_rows = size/ load_factor;
 
 	double gpu_start, gpu_stop, cpu_start, cpu_stop, ot_start, ot_stop;
 	int cpu_N = 1, gpu_N = 1;
