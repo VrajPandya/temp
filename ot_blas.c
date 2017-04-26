@@ -18,7 +18,7 @@
 
 #define MAX_double 50.0
 
-#define PRINT 0 
+#define PRINT 1
 
 #define MY_PERF 1
 
@@ -36,7 +36,7 @@ void fill_rand(double *A, int rows, int cols) {
 
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			A[(i * rows) + j] = rand() / MAX_double;
+			A[(i * rows) + j] = rand() /  MAX_double;
 		}
 	}
 }
@@ -45,6 +45,7 @@ void fill_seq(double *A, int rows, int cols) {
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
 			A[(i * rows) + j] = (i * rows) + j;
+			//A[(i * rows) + j] =  i;
 		}
 	}
 }
@@ -70,35 +71,35 @@ void print_matrix(const double *A, int rows_A, int cols_A, int lda) {
 	}
 }
 
-void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
+void ot_dgemm(int cpu_rows, int m, int n, int k, double alpha, double* h_A, int lda,
 		double* h_B, int ldb, double beta, double* h_C, int ldc) {
-	int cpu_rows = 2;
-	int cpu_ops = cpu_rows * lda;
+	int cpu_ops = cpu_rows * m ;
 
-	int c = cpu_ops;
+	int r = m - cpu_rows;
 
 	cublasHandle_t handle;
 	cublasCreate(&handle);
 
 	double *d_A, *d_B, *d_C;
-	cudaMalloc(&d_A, (m) * k * sizeof(double));
+	cudaMalloc(&d_A, r * k * sizeof(double));
 	cudaMalloc(&d_B, n * k * sizeof(double));
 	cudaMalloc(&d_C, (m) * n * sizeof(double));
 
-	cudaMemcpyAsync(d_A, h_A , (m * k) * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(d_A, h_A + cpu_ops, (r * k) * sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpyAsync(d_B, h_B, n * k * sizeof(double), cudaMemcpyHostToDevice);
 
 	// Do the actual multiplication
-	cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, k, m - cpu_rows, n, &alpha, d_A + cpu_ops, m - cpu_rows, d_B, k, &beta, d_C + cpu_ops, n);
-
-	cudaMemcpyAsync(h_C + (cpu_ops), d_C + cpu_ops, ((m - cpu_rows) * n) * sizeof(double),
-			cudaMemcpyDeviceToHost);
+	printf("before gpu\n");
+	cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, r, k, &alpha, d_B, lda, d_A, ldb, &beta, d_C, ldc);
 
 
+	printf("after gpu\n");
+	cudaMemcpyAsync(h_C + cpu_ops, d_C, (r * n) * sizeof(double), cudaMemcpyDeviceToHost);
 	cpu_dgemm(cpu_rows, n, k, alpha, h_A, lda, h_B, ldb, beta, h_C, ldc);
 	//cpu_dgemm(m - cpu_rows, n, k, alpha, h_A + cpu_ops, lda, h_B, ldb, beta, h_C + cpu_ops, ldc);
-	// Destroy the handle
 
+
+	// Destroy the handle
 	cudaDeviceSynchronize();
 	cublasDestroy(handle);
 	cudaFree(d_A);
@@ -107,11 +108,12 @@ void ot_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 
 }
 
+
 int main(int argc, const char** argv) {
 	// Allocate 3 arrays on CPU
 	int rows_A, cols_A, rows_B, cols_B, rows_C, cols_C;
 	float flopsCoef = 2.0;
-	int size = 5;
+	int size = 5, cpu_rows = 2;
 
 	double gpu_start, gpu_stop, cpu_start, cpu_stop, ot_start, ot_stop;
 	int cpu_N = 1, gpu_N = 1;
@@ -119,6 +121,9 @@ int main(int argc, const char** argv) {
 	if (argc > 1) {
 		size = atoi(argv[1]);
 	}
+	if (argc > 2) {
+			cpu_rows = atoi(argv[2]);
+		}
 	rows_A = cols_A = rows_B = cols_B = rows_C = cols_C = size;
 
 	double *h_A = (double *) malloc(rows_A * cols_A * sizeof(double));
@@ -161,11 +166,14 @@ int main(int argc, const char** argv) {
 	ot_start = cpu_stop = second();
 #endif
 	//both CPU and GPU execution
-	ot_dgemm(rows_A, cols_A, cols_B, 1.0, h_A, cols_A, h_B, cols_B, 0.0, ot_C,
+	ot_dgemm(cpu_rows, rows_A, cols_A, cols_B, 1.0, h_A, cols_A, h_B, cols_B, 0.0, ot_C,
 			cols_C);
 #if MY_PERF
 	ot_stop = second();
 #endif
+
+	int diff = diff_mat(h_diff_C, h_cpu_C, ot_C, rows_B, cols_C);
+
 
 #if PRINT
 	printf("++++++++++++++++++++++++++A++++++++++++++++++++++++++ :\n");
@@ -184,13 +192,16 @@ int main(int argc, const char** argv) {
 	printf("++++++++++++++++++++++++++ot C++++++++++++++++++++++++++:\n");
 	print_matrix(ot_C, rows_B, cols_C, cols_C);
 
+	if(diff){
+			printf("++++++++++++++++++++++++++diff++++++++++++++++++++++++++:\n");
+			print_matrix(h_diff_C, rows_B, cols_C, cols_C);
+		}
 
 #endif
-	int diff = diff_mat(h_diff_C, h_cpu_C, ot_C, rows_B, cols_C);
 	if(diff){
-		printf("++++++++++++++++++++++++++diff++++++++++++++++++++++++++:\n");
-		print_matrix(h_diff_C, rows_B, cols_C, cols_C);
+		printf("***The ot matrix and cpu matrix are different***\n");
 	}
+
 #if MY_PERF
 	printf("^^^^ elapsed for GPU = %10.8f sec  GFLOPS=%g\n",
 			(gpu_stop - gpu_start),

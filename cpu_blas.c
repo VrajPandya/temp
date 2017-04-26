@@ -13,7 +13,7 @@ void cpu_sgemm(int m, int n, int k, float alpha, float* h_A, int lda,
 void cpu_dgemm(int m, int n, int k, double alpha, double* h_A, int lda,
 		double* h_B, int ldb, double beta, double* h_C, int ldc) {
 
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, h_A, k, h_B, n, beta, h_C, n);
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, h_A, lda, h_B, ldb, beta, h_C, ldc);
 
 
 }

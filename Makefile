@@ -6,6 +6,8 @@ CC_FLAGS =
 ICC_FLAGS = 
 GPU_CC_FLAGS = -Wno-deprecated-gpu-targets
 
+DEBUG =
+
 GPU_ROOT = /usr/local/cuda-8.0
 GPU_LIB_ROOT = $(GPU_ROOT)/lib64
 GPU_LIBS = -lcudart -lcublas -lcurand -lcudadevrt
@@ -35,17 +37,17 @@ sum.o:
 
 ##############################################################	
 ot_blas: gpublas.a cpu_blas.a ot_blas.o
-	g++ ot_blas.o -o ot_blas -lgpublas -lcpublas -L. $(LD_GPU_LIBS) $(LD_CPU_LIBS)
+	g++ $(DEBUG) ot_blas.o -o ot_blas -lgpublas -lcpublas -L. $(LD_GPU_LIBS) $(LD_CPU_LIBS)
 	
 ot_blas.o:
-	g++ -c ot_blas.c -o ot_blas.o -std=c11 $(LD_GPU_LIBS) $(LD_CPU_LIBS)
+	g++ $(DEBUG) -c ot_blas.c -o ot_blas.o -std=c11 $(LD_GPU_LIBS) $(LD_CPU_LIBS)
 	
 ##############################################################
 cpu_blas.a: cpu_blas.o
 	ar rcs libcpublas.a cpu_blas.o
 
 cpu_blas.o: 
-	icpc -c cpu_blas.c -o cpu_blas.o -lmkl
+	icpc $(DEBUG) -c cpu_blas.c -o cpu_blas.o -lmkl
 
 	
 ##############################################################
@@ -54,10 +56,10 @@ gpublas.a: link.o
 	nvcc --lib --output-file libgpublas.a gpu_blas.o link.o -Wno-deprecated-gpu-targets
 	
 link.o: gpu_blas.o
-	nvcc --gpu-architecture=sm_20 --device-link gpu_blas.o --output-file link.o -Wno-deprecated-gpu-targets
+	nvcc $(DEBUG) --gpu-architecture=sm_20 --device-link gpu_blas.o --output-file link.o -Wno-deprecated-gpu-targets
 
 gpu_blas.o:
-	nvcc --gpu-architecture=sm_20 --device-c gpu_blas.cu -lcublas -lcurand -Wno-deprecated-gpu-targets
+	nvcc $(DEBUG) --gpu-architecture=sm_20 --device-c gpu_blas.cu -lcublas -lcurand -Wno-deprecated-gpu-targets
 
 ##############################################################
 
